@@ -3,6 +3,7 @@
 namespace FreeAgent\Bitter\UnitOfTime;
 
 use \DateTime;
+use FreeAgent\Bitter\EventInterface;
 
 /**
  * @author Jérémy Romey <jeremy@free-agent.fr>
@@ -14,7 +15,7 @@ abstract class AbstractUnitOfTime
 
     public function __construct($eventName, DateTime $dateTime = null)
     {
-        $this->eventName = $eventName;
+        $this->eventName = $eventName instanceof EventInterface ? $eventName->getKey() : $eventName;
         $this->dateTime  = is_null($dateTime) ? new DateTime : $dateTime;
     }
 

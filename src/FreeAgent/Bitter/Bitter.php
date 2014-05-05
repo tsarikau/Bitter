@@ -10,7 +10,6 @@ use FreeAgent\Bitter\UnitOfTime\Month;
 use FreeAgent\Bitter\UnitOfTime\Week;
 use FreeAgent\Bitter\UnitOfTime\Day;
 use FreeAgent\Bitter\UnitOfTime\Hour;
-use FreeAgent\Bitter\UnitOfTime\UnitOfTimeInterface;
 
 /**
  * @author Jérémy Romey <jeremy@free-agent.fr>
@@ -89,7 +88,7 @@ class Bitter
      */
     public function in($id, $key)
     {
-        $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
+        $key = $key instanceof EventInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
 
         return (bool) $this->getRedisClient()->getbit($key, $id);
     }
@@ -102,15 +101,15 @@ class Bitter
      */
     public function count($key)
     {
-        $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
+        $key = $key instanceof EventInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
 
         return (int) $this->getRedisClient()->bitcount($key);
     }
 
     private function bitOp($op, $destKey, $keyOne, $keyTwo)
     {
-        $keyOne = $keyOne instanceof UnitOfTimeInterface ? $this->prefixKey . $keyOne->getKey() : $this->prefixTempKey . $keyOne;
-        $keyTwo = $keyTwo instanceof UnitOfTimeInterface ? $this->prefixKey . $keyTwo->getKey() : $this->prefixTempKey . $keyTwo;
+        $keyOne = $keyOne instanceof EventInterface ? $this->prefixKey . $keyOne->getKey() : $this->prefixTempKey . $keyOne;
+        $keyTwo = $keyTwo instanceof EventInterface ? $this->prefixKey . $keyTwo->getKey() : $this->prefixTempKey . $keyTwo;
 
         $this->getRedisClient()->bitop($op, $this->prefixTempKey . $destKey, $keyOne, $keyTwo);
         $this->getRedisClient()->sadd($this->prefixTempKey . 'keys', $destKey);
@@ -198,7 +197,7 @@ class Bitter
      */
     public function getIds($key)
     {
-        $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
+        $key = $key instanceof EventInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
 
         $string = $this->getRedisClient()->get($key);
 
