@@ -12,6 +12,7 @@ abstract class AbstractUnitOfTime
 {
     protected $eventName;
     protected $dateTime;
+    protected $expires=null;
 
     public function __construct($eventName, DateTime $dateTime = null)
     {
@@ -27,6 +28,19 @@ abstract class AbstractUnitOfTime
     public function getDateTime()
     {
         return $this->dateTime;
+    }
+
+    public function setExpires($dateTime=null){
+        $this->expires=$dateTime;
+        return $this;
+    }
+
+    public function getExpires(){
+        return $this->expires;
+    }
+
+    public static function create($eventName, DateTime $dateTime = null){
+        return new static($eventName,$dateTime);
     }
 
     abstract public function getDateTimeFormated();

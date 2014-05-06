@@ -1,15 +1,19 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: tsarikau
- * Date: 02/05/2014
- * Time: 12:35
- */
 
 namespace FreeAgent\Bitter;
 
+use FreeAgent\Bitter\UnitOfTime\UnitOfTimeInterface;
 
 interface EventInterface {
 
+    /**
+     * @return mixed
+     */
     public function getKey();
+
+    /**
+     * @param \DateTime $dateTime
+     * @return UnitOfTimeInterface[]
+     */
+    public function getUnitsOfTime(\DateTime $dateTime);
 }
