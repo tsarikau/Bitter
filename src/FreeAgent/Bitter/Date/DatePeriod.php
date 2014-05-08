@@ -25,6 +25,9 @@ class DatePeriod extends \DatePeriod
 
     public static function createForHour(DateTime $from, DateTime $to, $fromOrTo = self::CREATE_FROM)
     {
+        $from = clone $from;
+        $to = clone $to;
+
         if ($from->format('Y-m-d') != $to->format('Y-m-d')) {
             if (self::CREATE_TO !== $fromOrTo) {
                 $from->setTime($from->format('H'), 0, 0);
@@ -45,8 +48,8 @@ class DatePeriod extends \DatePeriod
 
     public static function createForDay(DateTime $from, DateTime $to, $fromOrTo = self::CREATE_FROM)
     {
-        $mFrom = $from;
-        $mTo = $to;
+        $mFrom = clone $from;
+        $mTo = clone $to;
         if ($mFrom->format('Y-m') != $mTo->format('Y-m')) {
             if (self::CREATE_TO !== $fromOrTo) {
                 $mFrom->setTime(0, 0, 0);
@@ -69,8 +72,8 @@ class DatePeriod extends \DatePeriod
 
     public static function createForMonth(DateTime $from, DateTime $to, $fromOrTo = self::CREATE_FROM)
     {
-        $mFrom = $from;
-        $mTo = $to;
+        $mFrom = clone $from;
+        $mTo = clone $to;
         if ($mFrom->format('Y') != $to->format('Y')) {
             if (self::CREATE_TO !== $fromOrTo) {
                 $mFrom->setTime(0, 0, 0);
@@ -95,6 +98,9 @@ class DatePeriod extends \DatePeriod
 
     public static function createForYear(DateTime $from, DateTime $to)
     {
+        $from = clone $from;
+        $to = clone $to;
+
         $from->setDate($from->format('Y'), 1, 1);
         $from->setTime(0, 0, 0);
         $to->setDate($to->format('Y'), 1, 1);
