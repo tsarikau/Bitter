@@ -107,6 +107,7 @@ class Bitter
     {
         $key = $this->prefixKey . $unit->getKey();
         $this->getRedisClient($client)->setbit($key, $id, 1);
+
         return $key;
     }
 
@@ -115,6 +116,7 @@ class Bitter
     {
         $key = $this->prefixKey . $unit->getAggregationKey();
         $this->getRedisClient($client)->zincrby($key, 1.0, $id);
+
         return $key;
     }
 
@@ -129,6 +131,7 @@ class Bitter
     {
         if ($key instanceof AggregationUnitInterface) {
             $key = $this->prefixKey . $key->getAggregationKey();
+
             return (bool)$this->getRedisClient()->zscore($key, $id);
         }
 
@@ -150,12 +153,8 @@ class Bitter
             if ($id) {
                 return (int)$this->getRedisClient()->zscore($key, $id);
             }
-            $aggregation = 0;
-            foreach ($this->getRedisClient()->zrange($key, 0, -1, 'WITHSCORES') as $member) {
-                $aggregation += (int)$member[1];
-            }
 
-            return $aggregation;
+            return array_sum($this->getRedisClient()->zrange($key, 0, -1, 'WITHSCORES'));
         }
 
         $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
@@ -196,8 +195,8 @@ class Bitter
     {
         if ($from > $to) {
             throw new Exception("DateTime from (" . $from->format(
-                'Y-m-d H:i:s'
-            ) . ") must be anterior to DateTime to (" . $to->format('Y-m-d H:i:s') . ").");
+                    'Y-m-d H:i:s'
+                ) . ") must be anterior to DateTime to (" . $to->format('Y-m-d H:i:s') . ").");
         }
 
         $this->getRedisClient()->del($this->prefixTempKey . $destKey);
@@ -270,8 +269,8 @@ class Bitter
         }
         if ($from > $to) {
             throw new Exception("DateTime from (" . $from->format(
-                'Y-m-d H:i:s'
-            ) . ") must be anterior to DateTime to (" . $to->format('Y-m-d H:i:s') . ").");
+                    'Y-m-d H:i:s'
+                ) . ") must be anterior to DateTime to (" . $to->format('Y-m-d H:i:s') . ").");
         }
         $rc = $this->getRedisClient();
 
@@ -361,11 +360,8 @@ class Bitter
             if (!$with_scores) {
                 return $this->getRedisClient()->zrange($key, 0, -1);
             }
-            $result = array();
-            foreach ($this->getRedisClient()->zrange($key, 0, -1, 'WITHSCORES') as $m) {
-                $result[] = $m;
-            }
-            return $result;
+
+            return $this->getRedisClient()->zrange($key, 0, -1, 'WITHSCORES');
         }
 
         $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
