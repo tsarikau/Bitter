@@ -4,7 +4,8 @@ namespace FreeAgent\Bitter;
 
 use FreeAgent\Bitter\UnitOfTime\UnitOfTimeInterface;
 
-interface EventInterface {
+interface EventInterface
+{
 
     /**
      * @return mixed
@@ -16,4 +17,10 @@ interface EventInterface {
      * @return UnitOfTimeInterface[]
      */
     public function getUnitsOfTime(\DateTime $dateTime);
+
+
+    /**
+     * @return string
+     */
+    public function __toString();
 }

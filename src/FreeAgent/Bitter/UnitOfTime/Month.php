@@ -5,7 +5,7 @@ namespace FreeAgent\Bitter\UnitOfTime;
 /**
  * @author Jérémy Romey <jeremy@free-agent.fr>
  */
-class Month extends AbstractUnitOfTime implements UnitOfTimeInterface
+class Month extends AbstractUnitOfTime
 {
     public function getDateTimeFormated()
     {

@@ -46,4 +46,25 @@ class Event implements EventInterface
             'hour' => new Hour($this, $dateTime),
         );
     }
+
+    /**
+     * @param $event
+     * @return static
+     */
+    public static function create($event)
+    {
+        if ($event instanceof static) {
+            return $event;
+        }
+
+        return new static($event);
+    }
+
+    /**
+     * @return string
+     */
+    public function __toString()
+    {
+        return $this->getKey();
+    }
 }

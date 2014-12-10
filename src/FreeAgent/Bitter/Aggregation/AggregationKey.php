@@ -2,14 +2,13 @@
 /**
  * Created by PhpStorm.
  * User: tsarikau
- * Date: 05/12/2014
- * Time: 04:09
+ * Date: 04/12/2014
+ * Time: 14:38
  */
 
-namespace FreeAgent\Bitter;
+namespace FreeAgent\Bitter\Aggregation;
 
-
-class Key implements KeyInterface
+class AggregationKey implements AggregationKeyInterface
 {
 
     protected $key;
@@ -21,6 +20,6 @@ class Key implements KeyInterface
 
     public function __toString()
     {
-        return (string)$this->key;
+        return sprintf("%s:%s", (string)$this->key, 'aggr');
     }
-} 
+}

@@ -2,15 +2,35 @@
 
 namespace FreeAgent\Bitter\UnitOfTime;
 
+use FreeAgent\Bitter\KeyInterface;
+
 /**
  * @author Jérémy Romey <jeremy@free-agent.fr>
  */
-interface UnitOfTimeInterface
+interface UnitOfTimeInterface extends KeyInterface
 {
-    public function __construct($eventName, \DateTime $dateTime);
+    /**
+     * @return string
+     */
     public function getUnitOfTimeName();
+
+    /**
+     * @return \DateTime | null
+     */
     public function getDateTime();
+
+    /**
+     * @return string
+     */
     public function getDateTimeFormated();
+
+    /**
+     * @return mixed
+     */
     public function getExpires();
+
+    /**
+     * @return KeyInterface
+     */
     public function getKey();
 }

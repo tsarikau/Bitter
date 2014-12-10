@@ -4,18 +4,16 @@ namespace FreeAgent\Bitter;
 
 use \DateTime;
 use \Exception;
+use FreeAgent\Bitter\Aggregation\Aggregation;
+use FreeAgent\Bitter\Aggregation\AggregationKey;
+use FreeAgent\Bitter\Aggregation\AggregationKeyInterface;
 use FreeAgent\Bitter\Date\DatePeriod;
-use FreeAgent\Bitter\UnitOfTime\AggregationUnitInterface;
-use FreeAgent\Bitter\UnitOfTime\DayAggregation;
-use FreeAgent\Bitter\UnitOfTime\HourAggregation;
-use FreeAgent\Bitter\UnitOfTime\MonthAggregation;
 use FreeAgent\Bitter\UnitOfTime\Year;
 use FreeAgent\Bitter\UnitOfTime\Month;
 use FreeAgent\Bitter\UnitOfTime\Week;
 use FreeAgent\Bitter\UnitOfTime\Day;
 use FreeAgent\Bitter\UnitOfTime\Hour;
 use FreeAgent\Bitter\UnitOfTime\UnitOfTimeInterface;
-use FreeAgent\Bitter\UnitOfTime\YearAggregation;
 
 /**
  * @author Jérémy Romey <jeremy@free-agent.fr>
@@ -42,7 +40,8 @@ class Bitter
     /**
      * Get the Redis client
      *
-     * @return The Redis client
+     * @param null $client
+     * @return mixed
      */
     public function getRedisClient($client = null)
     {
@@ -56,7 +55,8 @@ class Bitter
     /**
      * Set the Redis client
      *
-     * @param object $newredisClient The Redis client
+     * @param $redisClient
+     * @return $this
      */
     public function setRedisClient($redisClient)
     {
@@ -68,9 +68,10 @@ class Bitter
     /**
      * Marks an event for hours, days, weeks and months
      *
-     * @param string $eventName The name of the event, could be "active" or "new_signups"
+     * @param $event
      * @param integer $id An unique id, typically user id. The id should not be huge, read Redis documentation why (bitmaps)
      * @param DateTime $dateTime Which date should be used as a reference point, default is now
+     * @return $this
      */
     public function mark($event, $id, DateTime $dateTime = null)
     {
@@ -81,21 +82,25 @@ class Bitter
         $this->getRedisClient()->pipeline(
             function ($pipe) use ($event, $id, $dateTime) {
                 foreach ($event->getUnitsOfTime($dateTime) as $unit) {
-                    $key = null;
 
-                    if ($unit instanceof AggregationUnitInterface) {
-                        $key = $this->incrScore($unit, $id, $pipe);
+                    //set bit or increment score on time unit's key
+                    if ($unit instanceof AggregationKeyInterface) {
+                        $pipe->zincrby($this->hash($unit), 1.0, $id);
+                    } elseif ($unit instanceof KeyInterface) {
+                        $pipe->setbit($this->hash($unit), $id, 1);
                     } else {
-                        $key = $this->setBit($unit, $id, $pipe);
+                        throw new \Exception('Aggregation or Bit keys only');
                     }
+
+                    //set expires for time unit's key, if provided
                     if ($expires = $unit->getExpires()) {
                         if ($expires instanceof DateTime) {
-                            $this->getRedisClient($pipe)->expireat($key, $expires->getTimestamp());
+                            $pipe->expireat($this->hash($unit), $expires->getTimestamp());
                         } else {
-                            $this->getRedisClient($pipe)->expire($key, $expires);
+                            $pipe->expire($this->hash($unit), $expires);
                         }
                     }
-                    $this->getRedisClient($pipe)->sadd($this->prefixKey . 'keys', $key);
+                    $pipe->sadd($this->prefixKey . 'keys', $this->hash($unit));
                 }
             }
         );
@@ -103,74 +108,58 @@ class Bitter
         return $this;
     }
 
-    protected function setBit(UnitOfTimeInterface $unit, $id, $client = null)
-    {
-        $key = $this->prefixKey . $unit->getKey();
-        $this->getRedisClient($client)->setbit($key, $id, 1);
-        return $key;
-    }
-
-
-    protected function incrScore(AggregationUnitInterface $unit, $id, $client = null)
-    {
-        $key = $this->prefixKey . $unit->getAggregationKey();
-        $this->getRedisClient($client)->zincrby($key, 1.0, $id);
-        return $key;
-    }
-
     /**
      * Makes it possible to see if an id has been marked
      *
      * @param  integer $id An unique id
      * @param  mixed $key The key or the event
+     * @throws \Exception
      * @return boolean True if the id has been marked
      */
-    public function in($id, $key)
+    public function in($id, KeyInterface $key)
     {
-        if ($key instanceof AggregationUnitInterface) {
-            $key = $this->prefixKey . $key->getAggregationKey();
-            return (bool)$this->getRedisClient()->zscore($key, $id);
+        if ($key instanceof AggregationKeyInterface) {
+            return (bool)$this->getRedisClient()->zscore($this->hash($key), $id);
         }
 
-        $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
+        return (bool)$this->getRedisClient()->getbit($this->hash($key), $id);
 
-        return (bool)$this->getRedisClient()->getbit($key, $id);
     }
 
     /**
      * Counts the number of marks
      *
      * @param  mixed $key The key or the event
+     * @param null $id
+     * @throws \Exception
      * @return integer The value of the count result
      */
-    public function count($key, $id = null)
+    public function count(KeyInterface $key, $id = null)
     {
-        if ($key instanceof AggregationUnitInterface) {
-            $key = $this->prefixKey . $key->getAggregationKey();
+        if ($key instanceof AggregationKeyInterface) {
+
             if ($id) {
-                return (int)$this->getRedisClient()->zscore($key, $id);
+                return (int)$this->getRedisClient()->zscore($this->hash($key), $id);
             }
+
             $aggregation = 0;
-            foreach ($this->getRedisClient()->zrange($key, 0, -1, 'WITHSCORES') as $score) {
+            foreach ($this->getRedisClient()->zrange($this->hash($key), 0, -1, 'WITHSCORES') as $score) {
                 $aggregation += (int)$score;
             }
 
             return $aggregation;
         }
 
-        $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
-
-        return (int)$this->getRedisClient()->bitcount($key);
+        return (int)$this->getRedisClient()->bitcount($this->hash($key));
     }
 
     private function bitOp($op, $destKey, $keyOne, $keyTwo)
     {
-        $keyOne = $keyOne instanceof UnitOfTimeInterface ? $this->prefixKey . $keyOne->getKey(
-            ) : $this->prefixTempKey . $keyOne;
-        $keyTwo = $keyTwo instanceof UnitOfTimeInterface ? $this->prefixKey . $keyTwo->getKey(
-            ) : $this->prefixTempKey . $keyTwo;
+        $destKey = $this->hash($destKey);
+        $keyOne = $this->hash($keyOne);
+        $keyTwo = $this->hash($keyTwo);
 
-        $this->getRedisClient()->bitop($op, $this->prefixTempKey . $destKey, $keyOne, $keyTwo);
+        $this->getRedisClient()->bitop($op, $destKey, $keyOne, $keyTwo);
         $this->getRedisClient()->sadd($this->prefixTempKey . 'keys', $destKey);
         $this->getRedisClient()->expire($destKey, $this->expireTimeout);
 
@@ -192,7 +181,15 @@ class Bitter
         return $this->bitOp('XOR', $destKey, $keyOne, $keyTwo);
     }
 
-    public function bitDateRange($key, $destKey, DateTime $from, DateTime $to)
+    /**
+     * @param $event
+     * @param Key $destKey
+     * @param DateTime $from
+     * @param DateTime $to
+     * @return $this
+     * @throws \Exception
+     */
+    public function bitDateRange(EventInterface $event, Key $destKey, DateTime $from, DateTime $to)
     {
         if ($from > $to) {
             throw new Exception("DateTime from (" . $from->format(
@@ -200,12 +197,12 @@ class Bitter
             ) . ") must be anterior to DateTime to (" . $to->format('Y-m-d H:i:s') . ").");
         }
 
-        $this->getRedisClient()->del($this->prefixTempKey . $destKey);
+        $this->getRedisClient()->del($this->hash($destKey));
 
         // Hours
         $hoursFrom = DatePeriod::createForHour($from, $to, DatePeriod::CREATE_FROM);
         foreach ($hoursFrom as $date) {
-            $this->bitOpOr($destKey, new Hour($key, $date), $destKey);
+            $this->bitOpOr($destKey, Hour::create($event, $date), $destKey);
         }
         $hoursTo = DatePeriod::createForHour($from, $to, DatePeriod::CREATE_TO);
         if (array_diff($hoursTo->toArray(true), $hoursFrom->toArray(true)) !== array_diff(
@@ -214,14 +211,14 @@ class Bitter
             )
         ) {
             foreach ($hoursTo as $date) {
-                $this->bitOpOr($destKey, new Hour($key, $date), $destKey);
+                $this->bitOpOr($destKey, Hour::create($event, $date), $destKey);
             }
         }
 
         // Days
         $daysFrom = DatePeriod::createForDay($from, $to, DatePeriod::CREATE_FROM);
         foreach ($daysFrom as $date) {
-            $this->bitOpOr($destKey, new Day($key, $date), $destKey);
+            $this->bitOpOr($destKey, Day::create($event, $date), $destKey);
         }
         $daysTo = DatePeriod::createForDay($from, $to, DatePeriod::CREATE_TO);
         if (array_diff($daysTo->toArray(true), $daysFrom->toArray(true)) !== array_diff(
@@ -230,14 +227,14 @@ class Bitter
             )
         ) {
             foreach ($daysTo as $date) {
-                $this->bitOpOr($destKey, new Day($key, $date), $destKey);
+                $this->bitOpOr($destKey, Day::create($event, $date), $destKey);
             }
         }
 
         // Months
         $monthsFrom = DatePeriod::createForMonth($from, $to, DatePeriod::CREATE_FROM);
         foreach ($monthsFrom as $date) {
-            $this->bitOpOr($destKey, new Month($key, $date), $destKey);
+            $this->bitOpOr($destKey, Month::create($event, $date), $destKey);
         }
         $monthsTo = DatePeriod::createForMonth($from, $to, DatePeriod::CREATE_TO);
         if (array_diff($monthsTo->toArray(true), $monthsFrom->toArray(true)) !== array_diff(
@@ -246,24 +243,24 @@ class Bitter
             )
         ) {
             foreach ($monthsTo as $date) {
-                $this->bitOpOr($destKey, new Month($key, $date), $destKey);
+                $this->bitOpOr($destKey, Month::create($event, $date), $destKey);
             }
         }
 
         // Years
         $years = DatePeriod::createForYear($from, $to);
         foreach ($years as $date) {
-            $this->bitOpOr($destKey, new Year($key, $date), $destKey);
+            $this->bitOpOr($destKey, Year::create($event, $date), $destKey);
         }
 
-        $this->getRedisClient()->sadd($this->prefixTempKey . 'keys', $destKey);
-        $this->getRedisClient()->expire($destKey, $this->expireTimeout);
+        $this->getRedisClient()->sadd($this->prefixTempKey . 'keys', $this->hash($destKey));
+        $this->getRedisClient()->expire($this->hash($destKey), $this->expireTimeout);
 
         return $this;
     }
 
 
-    public function aggregationDateRange($key, $destKey, DateTime $from, DateTime $to = null)
+    public function aggregationDateRange($event, AggregationKey $destKey, DateTime $from, DateTime $to = null)
     {
         if (!$to) {
             $to = new DateTime();
@@ -275,14 +272,14 @@ class Bitter
         }
         $rc = $this->getRedisClient();
 
-        $rc->del($this->prefixTempKey . $destKey);
+        $rc->del($this->hash($destKey));
 
         $aggregation_keys = array();
 
         // Hours
         $hoursFrom = DatePeriod::createForHour($from, $to, DatePeriod::CREATE_FROM);
         foreach ($hoursFrom as $date) {
-            $aggregation_keys[] = HourAggregation::create($key, $date)->getAggregationKey();
+            $aggregation_keys[] = Aggregation::create(Hour::create($event, $date));
         }
         $hoursTo = DatePeriod::createForHour($from, $to, DatePeriod::CREATE_TO);
         if (array_diff($hoursTo->toArray(true), $hoursFrom->toArray(true)) !== array_diff(
@@ -291,14 +288,14 @@ class Bitter
             )
         ) {
             foreach ($hoursTo as $date) {
-                $aggregation_keys[] = HourAggregation::create($key, $date)->getAggregationKey();
+                $aggregation_keys[] = Aggregation::create(Hour::create($event, $date));
             }
         }
 
         // Days
         $daysFrom = DatePeriod::createForDay($from, $to, DatePeriod::CREATE_FROM);
         foreach ($daysFrom as $date) {
-            $aggregation_keys[] = DayAggregation::create($key, $date)->getAggregationKey();
+            $aggregation_keys[] = Aggregation::create(Day::create($event, $date));
         }
         $daysTo = DatePeriod::createForDay($from, $to, DatePeriod::CREATE_TO);
         if (array_diff($daysTo->toArray(true), $daysFrom->toArray(true)) !== array_diff(
@@ -307,14 +304,14 @@ class Bitter
             )
         ) {
             foreach ($daysTo as $date) {
-                $aggregation_keys[] = DayAggregation::create($key, $date)->getAggregationKey();
+                $aggregation_keys[] = Aggregation::create(Day::create($event, $date));
             }
         }
 
         // Months
         $monthsFrom = DatePeriod::createForMonth($from, $to, DatePeriod::CREATE_FROM);
         foreach ($monthsFrom as $date) {
-            $aggregation_keys[] = MonthAggregation::create($key, $date)->getAggregationKey();
+            $aggregation_keys[] = Aggregation::create(Month::create($event, $date));
         }
         $monthsTo = DatePeriod::createForMonth($from, $to, DatePeriod::CREATE_TO);
         if (array_diff($monthsTo->toArray(true), $monthsFrom->toArray(true)) !== array_diff(
@@ -323,26 +320,26 @@ class Bitter
             )
         ) {
             foreach ($monthsTo as $date) {
-                $aggregation_keys[] = MonthAggregation::create($key, $date)->getAggregationKey();
+                $aggregation_keys[] = Aggregation::create(Month::create($event, $date));
             }
         }
 
         // Years
         $years = DatePeriod::createForYear($from, $to);
         foreach ($years as $date) {
-            $aggregation_keys[] = YearAggregation::create($key, $date)->getAggregationKey();
+            $aggregation_keys[] = Aggregation::create(Year::create($event, $date));
         }
 
-        $arguments = array($this->prefixTempKey . $destKey, count($aggregation_keys));
+        $arguments = array($this->hash($destKey), count($aggregation_keys));
 
         foreach ($aggregation_keys as $k) {
-            array_push($arguments, $this->prefixKey . $k);
+            array_push($arguments, $this->hash($k));
         }
 
         call_user_func_array(array($rc, 'zunionstore'), $arguments);
 
-        $this->getRedisClient()->sadd($this->prefixTempKey . 'keys', $destKey);
-        $this->getRedisClient()->expire($destKey, $this->expireTimeout);
+        $this->getRedisClient()->sadd($this->prefixTempKey . 'keys', $this->hash($destKey));
+        $this->getRedisClient()->expire($this->hash($destKey), $this->expireTimeout);
 
         return $this;
     }
@@ -351,26 +348,25 @@ class Bitter
     /**
      * Returns the ids of an key or event
      *
-     * @param  mixed $key The key or the event
+     * @param  KeyInterface $key The key or the event
+     * @param null $with_scores
+     * @throws \Exception
      * @return array   The ids array
      */
-    public function getIds($key, $with_scores = null)
+    public function getIds(KeyInterface $key, $with_scores = null)
     {
-        if ($key instanceof AggregationKey) {
-            $key = $this->prefixTempKey . $key;
+        if ($key instanceof AggregationKeyInterface) {
             if (!$with_scores) {
-                return $this->getRedisClient()->zrange($key, 0, -1);
+                return $this->getRedisClient()->zrange($this->hash($key), 0, -1);
             }
             $result = array();
-            foreach ($this->getRedisClient()->zrange($key, 0, -1, 'WITHSCORES') as $member=>$score) {
+            foreach ($this->getRedisClient()->zrange($this->hash($key), 0, -1, 'WITHSCORES') as $member => $score) {
                 $result[] = array($member,$score);
             }
             return $result;
         }
 
-        $key = $key instanceof UnitOfTimeInterface ? $this->prefixKey . $key->getKey() : $this->prefixTempKey . $key;
-
-        $string = $this->getRedisClient()->get($key);
+        $string = $this->getRedisClient()->get($this->hash($key));
 
         $data = $this->bitsetToString($string);
 
@@ -383,6 +379,24 @@ class Bitter
         sort($ids);
 
         return $ids;
+
+    }
+
+    /**
+     * Returns key's string representation
+     * If $key is instance of UnitOfTimeInterface then default key prefix used,
+     * otherwise temporary key prefix
+     * @param KeyInterface $key
+     * @return string
+     */
+    public function hash(KeyInterface $key)
+    {
+        if ($key instanceof UnitOfTimeInterface) {
+            return $this->prefixKey . $key;
+        }
+
+        return $this->prefixTempKey . $key;
+
     }
 
     protected function bitsetToString($bitset = '')
