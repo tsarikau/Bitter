@@ -17,4 +17,10 @@ class Hour extends AbstractUnitOfTime
             $this->getDateTime()->format('H')
         );
     }
+
+    /** @return \DateInterval */
+    public function getInterval()
+    {
+        return new \DateInterval('P1H');
+    }
 }

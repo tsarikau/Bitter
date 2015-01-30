@@ -21,9 +21,35 @@ class Aggregation implements UnitOfTimeInterface, AggregationKeyInterface
         $this->inner = $inner;
     }
 
+    /**
+     * @return AbstractUnitOfTime
+     */
+    public function getInner()
+    {
+        return $this->inner;
+    }
+
     public static function create($unit)
     {
         return new static($unit);
+    }
+
+    /**
+     * @param \DateTime $dateTime
+     * @return UnitOfTimeInterface
+     */
+    public function modify(\DateTime $dateTime = null)
+    {
+        /** @var AbstractUnitOfTime $unit */
+        $unit = $this->inner->modify($dateTime);
+
+        return new static($unit);
+    }
+
+    /** @return \DateInterval */
+    public function getInterval()
+    {
+        return $this->inner->getInterval();
     }
 
     public function getUnitOfTimeName()

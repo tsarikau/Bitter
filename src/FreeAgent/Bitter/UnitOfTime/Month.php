@@ -11,4 +11,10 @@ class Month extends AbstractUnitOfTime
     {
         return sprintf('%s-%s', $this->getDateTime()->format('Y'), $this->getDateTime()->format('m'));
     }
+
+    /** @return \DateInterval */
+    public function getInterval()
+    {
+        return new \DateInterval('P1M');
+    }
 }

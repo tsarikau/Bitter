@@ -11,4 +11,10 @@ class Week extends AbstractUnitOfTime
     {
         return sprintf('%s-W%s', $this->getDateTime()->format('Y'), $this->getDateTime()->format('W'));
     }
+
+    /** @return \DateInterval */
+    public function getInterval()
+    {
+        return new \DateInterval('P1W');
+    }
 }

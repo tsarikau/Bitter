@@ -16,4 +16,12 @@ class Day extends AbstractUnitOfTime
             $this->getDateTime()->format('d')
         );
     }
+
+    /** @return \DateInterval */
+    public function getInterval()
+    {
+        return new \DateInterval('P1D');
+    }
+
+
 }

@@ -11,4 +11,10 @@ class Year extends AbstractUnitOfTime
     {
         return sprintf('%s', $this->getDateTime()->format('Y'));
     }
+
+    /** @return \DateInterval */
+    public function getInterval()
+    {
+        return new \DateInterval('P1Y');
+    }
 }

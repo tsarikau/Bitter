@@ -30,6 +30,17 @@ interface UnitOfTimeInterface extends KeyInterface
     public function getExpires();
 
     /**
+     * @param \DateTime $newDateTime
+     * @return static
+     */
+    public function modify(\DateTime $newDateTime);
+
+    /**
+     * @return \DateInterval | null
+     */
+    public function getInterval();
+
+    /**
      * @return KeyInterface
      */
     public function getKey();

@@ -2,11 +2,9 @@
 
 namespace FreeAgent\Bitter\UnitOfTime;
 
-use \DateTime;
-use FreeAgent\Bitter\BitKey;
+use DateTime;
 use FreeAgent\Bitter\EventInterface;
 use FreeAgent\Bitter\Key;
-use FreeAgent\Bitter\KeyInterface;
 
 /**
  * @author Jérémy Romey <jeremy@free-agent.fr>
@@ -66,6 +64,15 @@ abstract class AbstractUnitOfTime implements UnitOfTimeInterface
     public static function create($eventName, DateTime $dateTime = null)
     {
         return new static($eventName, $dateTime);
+    }
+
+    /**
+     * @param DateTime $dateTime
+     * @return AbstractUnitOfTime
+     */
+    public function modify(\DateTime $dateTime = null)
+    {
+        return static::create($this->eventName, $dateTime);
     }
 
     /**

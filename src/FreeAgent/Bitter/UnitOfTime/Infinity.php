@@ -16,6 +16,13 @@ class Infinity extends AbstractUnitOfTime
         return 'inf';
     }
 
+    /** @return \DateInterval */
+    public function getInterval()
+    {
+        return null;
+    }
+
+
     public function getExpires()
     {
         return null;
