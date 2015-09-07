@@ -80,27 +80,43 @@ class Bitter
         $event = $event instanceof EventInterface ? $event : new Event($event, $dateTime);
 
         $this->getRedisClient()->pipeline(
+            array(
+                'fire-and-forget' => true,
+            ),
             function ($pipe) use ($event, $id, $dateTime) {
+
+                $now = new \DateTime();
+
                 foreach ($event->getUnitsOfTime($dateTime) as $unit) {
+
+                    $expires = $unit->getExpires();
+
+                    //key will be removed immediately in such case, so why not stop it from write?
+                    if ($expires && $expires instanceof DateTime && $now > $expires) {
+                        continue;
+                    }
+
+                    $key = $this->hash($unit);
 
                     //set bit or increment score on time unit's key
                     if ($unit instanceof AggregationKeyInterface) {
-                        $pipe->zincrby($this->hash($unit), 1.0, $id);
+                        $pipe->zincrby($key, 1.0, $id);
                     } elseif ($unit instanceof KeyInterface) {
-                        $pipe->setbit($this->hash($unit), $id, 1);
+                        $pipe->setbit($key, $id, 1);
                     } else {
                         throw new \Exception('Aggregation or Bit keys only');
                     }
 
                     //set expires for time unit's key, if provided
-                    if ($expires = $unit->getExpires()) {
+                    if ($expires) {
                         if ($expires instanceof DateTime) {
-                            $pipe->expireat($this->hash($unit), $expires->getTimestamp());
+                            $pipe->expireat($key, $expires->getTimestamp());
                         } else {
-                            $pipe->expire($this->hash($unit), $expires);
+                            $pipe->expire($key, $expires);
                         }
                     }
-                    $pipe->sadd($this->prefixKey . 'keys', $this->hash($unit));
+
+                    $pipe->sadd($this->prefixKey . 'keys', $key);
                 }
             }
         );
