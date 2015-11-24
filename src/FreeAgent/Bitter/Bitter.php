@@ -80,9 +80,6 @@ class Bitter
         $event = $event instanceof EventInterface ? $event : new Event($event, $dateTime);
 
         $this->getRedisClient()->pipeline(
-            array(
-                'fire-and-forget' => true,
-            ),
             function ($pipe) use ($event, $id, $dateTime) {
 
                 $now = new \DateTime();
